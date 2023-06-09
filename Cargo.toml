@@ -2,6 +2,8 @@
 name = "read"
 version = "0.1.0"
 edition = "2021"
+description = "Key component of Readability module extracted from https://gitlab.com/news-flash/article_scraper."
+license = "MIT"
 
 [[bin]]
 name = "main"
