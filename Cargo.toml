@@ -1,13 +1,9 @@
 [package]
 name = "readah"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Key component of Readability module extracted from https://gitlab.com/news-flash/article_scraper."
 license = "MIT"
-
-[[bin]]
-name = "main"
-path = "src/main.rs"
 
 [dependencies]
 thiserror = "1.0"
@@ -24,3 +20,14 @@ escaper = "0.1"
 http_req = "0.9.1"
 anyhow = "1.0.71"
 html2text = "0.6.0"
+headless_chrome = "1.0.5"
+tiktoken-rs = "0.4.2"
+pdfium-render = "0.8.5"
+serde_json = "1.0.96"
+
+[[example]]
+name = "headless"
+path = "src/example/headless.rs"
+[[example]]
+name = "http_client"
+path = "src/example/http_client.rs"

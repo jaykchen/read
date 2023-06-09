@@ -1,9 +1,9 @@
-mod readability;
 use html2text::from_read;
 use readah::readability::Readability;
 use anyhow::Result;
 use http_req::request;
 use url::Url;
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
