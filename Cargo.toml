@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 thiserror = "1.0"
-libxml = "0.3.0"
+libxml = "0.2"
 reqwest = { version = "0.11", features = ["json", "native-tls", "gzip", "brotli", "stream"] }
 tokio = { version = "1.27", features = ["macros", "fs", "io-util", "rt", "rt-multi-thread"] }
 url = "2.3"

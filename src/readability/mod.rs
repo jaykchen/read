@@ -1247,8 +1247,8 @@ pub fn fix_lazy_images(context: &Context, doc: &Document) -> anyhow::Result<()> 
             .get_attribute("class")
             .map(|c| c.to_lowercase().contains("lazy"))
             .unwrap_or(false);
-        let has_scr = node.has_attribute("src");
-        let has_srcset = node.has_attribute("srcset");
+        let has_scr = node.get_attribute("src").is_some();
+        let has_srcset = node.get_attribute("srcset").is_some();
 
         if (has_scr || has_srcset) && !class_contains_lazy {
             continue;

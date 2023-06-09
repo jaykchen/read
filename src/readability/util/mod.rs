@@ -147,7 +147,7 @@ impl Util {
 
         for node in res {
             let content = node.get_content();
-            let url_str = if content.trim().is_empty() && node.has_attribute("href") {
+            let url_str = if content.trim().is_empty() && node.get_attribute("href").is_some() {
                 node.get_attribute("href")
                     .expect("already checked for href")
             } else {
@@ -314,7 +314,7 @@ impl Util {
     }
 
     pub fn is_probably_visible(node: &Node) -> bool {
-        let is_hidden = node.has_attribute("hidden");
+        let is_hidden = node.get_attribute("hidden").is_some();
         let aria_hidden = node
             .get_attribute("aria-hidden")
             .map(|attr| attr == "true")

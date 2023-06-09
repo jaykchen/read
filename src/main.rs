@@ -7,7 +7,7 @@ use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let url = "https://pubmed.ncbi.nlm.nih.gov/16435954/";
+    let url = "https://2023.fossy.us/";
 
     let parsed_url = Url::parse(url)?;
     let scheme = parsed_url.scheme();
