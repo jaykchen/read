@@ -1,5 +1,5 @@
 [package]
-name = "read"
+name = "readah"
 version = "0.1.0"
 edition = "2021"
 description = "Key component of Readability module extracted from https://gitlab.com/news-flash/article_scraper."
