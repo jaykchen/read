@@ -1,25 +1,13 @@
 mod readability;
-use read::readability::Readability;
 use html2text::from_read;
-use std::path::Path;
-use std::{path::PathBuf, process::exit};
-
+use read::readability::Readability;
 use anyhow::Result;
-// use article_scraper::{
-//     ArticleScraper, FtrConfigEntry, FullTextParser,
-//     Readability::{self},
-// };
-
 use http_req::request;
-use reqwest::header::HeaderMap;
-use reqwest::Client;
-use std::{fs, println};
-use tokio::sync::mpsc::{self, Sender};
 use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let url = "https://hackaday.com/2023/06/01/farewell-american-computer-magazines/";
+    let url = "https://pubmed.ncbi.nlm.nih.gov/16435954/";
 
     let parsed_url = Url::parse(url)?;
     let scheme = parsed_url.scheme();
@@ -32,7 +20,8 @@ async fn main() -> Result<()> {
         Ok(res) => {
             let output = from_read(res.to_string().as_bytes(), 80);
 
-            println!("{:}", output);
+            let head = output.lines().take(100).collect::<Vec<&str>>().join("");
+            println!("{:}", head);
         }
         Err(_err) => {}
     }

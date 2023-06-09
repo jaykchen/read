@@ -10,25 +10,18 @@ use constants::{
     TITLE_SEPARATOR, UNLIELY_CANDIDATES, UNLIKELY_ROLES, VALID_EMPTY_TAGS, WORD_COUNT,
 };
 
-use util::Util;
-use chrono::format::ParseError;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use libxml::{
     parser::Parser,
     tree::{Document, Node, NodeType},
     xpath::Context,
 };
+use util::Util;
 
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::{Cursor, ErrorKind, Write};
-use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use tokio::fs;
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 use url::Url;
 pub struct State {
     pub strip_unlikely: bool,
@@ -387,7 +380,6 @@ impl Readability {
 
             let top_candidates = candidates.into_iter().take(5).collect::<Vec<_>>();
 
-            for candidate in top_candidates.iter() {}
             let mut needed_to_create_top_candidate = false;
             let mut top_candidate = top_candidates.first().cloned().unwrap_or_else(|| {
                 // If we still have no top candidate, just use the body as a last resort.
@@ -847,153 +839,6 @@ macro_rules! extract_option_single {
         }
     };
 }
-impl ConfigEntry {
-    pub async fn parse_path(config_path: &Path) -> Result<ConfigEntry, ConfigError> {
-        let mut file = fs::File::open(&config_path).await?;
-        let buffer = BufReader::new(&mut file);
-
-        Self::parse(buffer).await
-    }
-
-    pub async fn parse_data(data: Cow<'static, [u8]>) -> Result<ConfigEntry, ConfigError> {
-        let data = data.as_ref();
-        let mut cursor = Cursor::new(data);
-        let buffer = BufReader::new(&mut cursor);
-
-        Self::parse(buffer).await
-    }
-
-    async fn parse<R: AsyncRead + Unpin>(buffer: BufReader<R>) -> Result<ConfigEntry, ConfigError> {
-        let mut xpath_title: Vec<String> = Vec::new();
-        let mut xpath_author: Vec<String> = Vec::new();
-        let mut xpath_date: Vec<String> = Vec::new();
-        let mut xpath_body: Vec<String> = Vec::new();
-        let mut xpath_strip: Vec<String> = Vec::new();
-        let mut strip_id_or_class: Vec<String> = Vec::new();
-        let mut strip_image_src: Vec<String> = Vec::new();
-        let mut replace_vec: Vec<Replace> = Vec::new();
-        let mut header_vec: Vec<Header> = Vec::new();
-        let mut next_page_link: Option<String> = None;
-        let mut single_page_link: Option<String> = None;
-
-        // ignore: tidy, prune, autodetect_on_failure and test_url
-        let title = "title:";
-        let body = "body:";
-        let date = "date:";
-        let author = "author:";
-        let strip = "strip:";
-        let strip_id = "strip_id_or_class:";
-        let strip_img = "strip_image_src:";
-        let single_page = "single_page_link:";
-        let next_page = "next_page_link:";
-        let find = "find_string:";
-        let replace = "replace_string:";
-        let replace_single = "replace_string(";
-        let http_header = "http_header(";
-
-        // ignore these
-        let tidy = "tidy:";
-        let prune = "prune:";
-        let test_url = "test_url:";
-        let autodetect = "autodetect_on_failure:";
-
-        let mut lines = buffer.lines();
-
-        while let Ok(Some(line)) = lines.next_line().await {
-            let line = line.trim();
-            if line.starts_with('#')
-                || line.starts_with(tidy)
-                || line.starts_with(prune)
-                || line.starts_with(test_url)
-                || line.starts_with(autodetect)
-                || line.is_empty()
-            {
-                continue;
-            }
-
-            extract_vec_multi!(line, title, xpath_title);
-            extract_vec_multi!(line, body, xpath_body);
-            extract_vec_multi!(line, date, xpath_date);
-            extract_vec_multi!(line, author, xpath_author);
-
-            extract_vec_single!(line, strip, xpath_strip);
-            extract_vec_single!(line, strip_id, strip_id_or_class);
-            extract_vec_single!(line, strip_img, strip_image_src);
-
-            extract_option_single!(line, single_page, single_page_link);
-            extract_option_single!(line, next_page, next_page_link);
-
-            if line.starts_with(replace_single) {
-                let value = Util::str_extract_value(replace_single, line);
-                let value: Vec<&str> = value.split("): ").map(|s| s.trim()).collect();
-                if value.len() != 2 {
-                    continue;
-                }
-
-                if let Some(to_replace) = value.first() {
-                    if let Some(replace_with) = value.get(1) {
-                        replace_vec.push(Replace {
-                            to_replace: (*to_replace).to_string(),
-                            replace_with: (*replace_with).to_string(),
-                        });
-                    }
-                }
-
-                continue;
-            }
-
-            if line.starts_with(http_header) {
-                let value = Util::str_extract_value(http_header, line);
-                let value: Vec<&str> = value.split("): ").map(|s| s.trim()).collect();
-                if value.len() != 2 {
-                    continue;
-                }
-
-                if let Some(name) = value.first() {
-                    if let Some(value) = value.get(1) {
-                        header_vec.push(Header {
-                            name: (*name).to_string(),
-                            value: (*value).to_string(),
-                        });
-                    }
-                }
-
-                continue;
-            }
-
-            if line.starts_with(find) {
-                let to_replace = Util::str_extract_value(find, line).into();
-
-                if let Ok(Some(next_line)) = lines.next_line().await {
-                    let replace_with = Util::str_extract_value(replace, &next_line).into();
-
-                    replace_vec.push(Replace {
-                        to_replace,
-                        replace_with,
-                    });
-                }
-
-                continue;
-            }
-        }
-
-        let config = ConfigEntry {
-            xpath_title,
-            xpath_author,
-            xpath_date,
-            xpath_body,
-            xpath_strip,
-            strip_id_or_class,
-            strip_image_src,
-            replace: replace_vec,
-            header: header_vec,
-            single_page_link,
-            next_page_link,
-        };
-
-        Ok(config)
-    }
-}
 
 pub fn post_process_document(document: &Document) -> Result<(), FullTextParserError> {
     if let Some(mut root) = document.get_root_element() {
@@ -1032,20 +877,6 @@ pub fn meta_extract(
                     title
                 }
             });
-    }
-
-    if article.author.is_none() {
-        article.author =
-            extract_author(context, config, global_config).map(
-                |author| match escaper::decode_html(&author) {
-                    Ok(escaped_author) => escaped_author,
-                    Err(_error) => author,
-                },
-            );
-    }
-
-    if article.date.is_none() {
-        article.date = extract_date(context, config, global_config);
     }
 }
 
@@ -1153,7 +984,6 @@ pub fn prep_content(
         );
     }
 
-    _ = unwrap_noscript_images(context);
     _ = Util::strip_node(context, "//noscript");
 
     _ = fix_lazy_images(context, document);
@@ -1326,9 +1156,7 @@ pub fn remove_attribute(
     let xpath = &format!("//{}[@{}]", xpath_tag, attribute);
     let node_vec = Util::evaluate_xpath(context, xpath, false)
         .map_err(|_err| anyhow::anyhow!("Failed to evaluate XPath"))?;
-    for mut node in node_vec {
-        if let Err(err) = node.remove_property(attribute) {}
-    }
+
     Ok(())
 }
 
@@ -1454,95 +1282,6 @@ pub fn fix_lazy_images(context: &Context, doc: &Document) -> anyhow::Result<()> 
             }
         }
     }
-    Ok(())
-}
-
-pub fn unwrap_noscript_images(ctx: &Context) -> anyhow::Result<()> {
-    // Find img without source or attributes that might contains image, and remove it.
-    // This is done to prevent a placeholder img is replaced by img from noscript in next step.
-    let img_nodes = Util::evaluate_xpath(ctx, "//img", false)?;
-    for mut img_node in img_nodes {
-        let attrs = img_node.get_attributes();
-
-        let keep = attrs.iter().any(|(name, value)| {
-            name == "src"
-                || name == "srcset"
-                || name == "data-src"
-                || name == "data-srcset"
-                || IS_IMAGE.is_match(value)
-        });
-        if !keep {
-            img_node.unlink();
-        }
-    }
-
-    // Next find noscript and try to extract its image
-    let noscript_nodes = Util::evaluate_xpath(ctx, "//noscript", false)
-        .map_err(|_err| anyhow::anyhow!("Failed to evaluate XPath"))?;
-    for mut noscript_node in noscript_nodes {
-        // Parse content of noscript and make sure it only contains image
-        if !Util::is_single_image(&noscript_node) {
-            continue;
-        }
-
-        // If noscript has previous sibling and it only contains image,
-        // replace it with noscript content. However we also keep old
-        // attributes that might contains image.
-        if let Some(prev) = noscript_node.get_prev_element_sibling() {
-            if Util::is_single_image(&prev) {
-                {
-                    let mut prev_img = prev.clone();
-
-                    if prev_img.get_name().to_uppercase() != "IMG" {
-                        if let Some(img_node) = Util::get_elements_by_tag_name(&prev_img, "img")
-                            .into_iter()
-                            .next()
-                        {
-                            prev_img = img_node;
-                        }
-                    }
-
-                    let new_img = Util::get_elements_by_tag_name(&noscript_node, "img")
-                        .into_iter()
-                        .next();
-                    if let Some(mut new_img) = new_img {
-                        for (key, value) in prev_img.get_attributes() {
-                            if value.is_empty() {
-                                continue;
-                            }
-
-                            if key == "src" || key == "srcset" || IS_IMAGE.is_match(&value) {
-                                if new_img.get_attribute(&key).as_deref() == Some(&value) {
-                                    continue;
-                                }
-
-                                let mut attr_name = key;
-                                if new_img.has_attribute(&attr_name) {
-                                    attr_name = format!("data-old-{attr_name}");
-                                }
-
-                                new_img.set_attribute(&attr_name, &value).map_err(|e| {
-                                    log::error!("{e}");
-                                    FullTextParserError::Xml
-                                })?;
-                            }
-                        }
-                    }
-                }
-
-                if let Some(mut parent) = noscript_node.get_parent() {
-                    if let Some(first_child) = noscript_node.get_first_element_child() {
-                        parent.replace_child_node(first_child, prev).map_err(|e| {
-                            log::error!("{e}");
-                            FullTextParserError::Xml
-                        })?;
-                        noscript_node.unlink();
-                    }
-                }
-            }
-        }
-    }
-
     Ok(())
 }
 
@@ -1737,36 +1476,6 @@ fn get_meta(context: &Context, name: &str) -> Option<String> {
     .ok()
 }
 
-fn extract_author(
-    context: &Context,
-    config: Option<&ConfigEntry>,
-    global_config: Option<&ConfigEntry>,
-) -> Option<String> {
-    // check site specific config
-    if let Some(config) = config {
-        for xpath_author in &config.xpath_author {
-            if let Ok(author) = Util::extract_value(context, xpath_author) {
-                return Some(author);
-            }
-        }
-    }
-
-    // check global config
-    if let Some(global_config) = global_config {
-        for xpath_author in &global_config.xpath_author {
-            if let Ok(author) = Util::extract_value(context, xpath_author) {
-                return Some(author);
-            }
-        }
-    }
-
-    // generic meta (readablity)
-    Util::extract_value(context, "//author")
-        .ok()
-        .or_else(|| get_meta(context, "dc:creator"))
-        .or_else(|| get_meta(context, "dcterm:creator"))
-}
-
 pub fn post_process_page(node: &mut Node) -> Result<(), FullTextParserError> {
     Util::clean_headers(node);
     Util::replace_schema_org_orbjects(node);
@@ -1782,38 +1491,6 @@ pub fn post_process_page(node: &mut Node) -> Result<(), FullTextParserError> {
     remove_empty_nodes(node);
 
     Ok(())
-}
-
-pub fn extract_date(
-    context: &Context,
-    config: Option<&ConfigEntry>,
-    global_config: Option<&ConfigEntry>,
-) -> Option<DateTime<Utc>> {
-    // check site specific config
-    if let Some(config) = config {
-        for xpath_date in &config.xpath_date {
-            if let Ok(date_string) = Util::extract_value(context, xpath_date) {
-                let naive_datetime =
-                    NaiveDateTime::parse_from_str(&date_string, "%Y-%m-%dT%H:%M:%SZ").ok()?;
-                let datetime_utc = DateTime::from_utc(naive_datetime, Utc);
-                return Some(datetime_utc);
-            }
-        }
-    }
-
-    // check global config
-    if let Some(global_config) = global_config {
-        for xpath_date in &global_config.xpath_date {
-            if let Ok(date_string) = Util::extract_value(context, xpath_date) {
-                let naive_datetime =
-                    NaiveDateTime::parse_from_str(&date_string, "%Y-%m-%dT%H:%M:%SZ").ok()?;
-                let datetime_utc = DateTime::from_utc(naive_datetime, Utc);
-                return Some(datetime_utc);
-            }
-        }
-    }
-
-    None
 }
 
 fn remove_empty_nodes(root: &mut Node) {
@@ -1856,47 +1533,12 @@ fn remove_share_elements(root: &mut Node) {
 }
 
 impl Article {
-    // pub fn get_doc_content(&self) -> Option<String> {
-    //     // serialize content
-    //     let options = SaveOptions {
-    //         format: true,
-    //         no_declaration: false,
-    //         no_empty_tags: true,
-    //         no_xhtml: false,
-    //         xhtml: false,
-    //         as_xml: false,
-    //         as_html: true,
-    //         non_significant_whitespace: false,
-    //     };
-    //     self.document
-    //         .as_ref()
-    //         .map(|doc| doc.to_string_with_options(options))
-    // }
-
     pub fn get_content(&self) -> Option<String> {
         if let (Some(document), Some(root)) = (self.document.as_ref(), self.root_node.as_ref()) {
             Some(document.node_to_string(root))
         } else {
             None
         }
-    }
-
-    pub fn save_html(&self, path: &PathBuf) -> anyhow::Result<()> {
-        if let Some(ref html) = self.get_content() {
-            if let Ok(()) = std::fs::create_dir_all(path) {
-                let mut file_name = match self.title.clone() {
-                    Some(file_name) => file_name.replace('/', "_"),
-                    None => "Unknown Title".to_owned(),
-                };
-                file_name.push_str(".html");
-                let path = path.join(file_name);
-                let mut html_file = File::create(path)?;
-                html_file.write_all(html.as_bytes())?;
-                return Ok(());
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -1907,107 +1549,4 @@ pub struct ImageObject {
     url: Option<Url>,
     description: Option<String>,
     name: Option<String>,
-}
-
-impl ImageObject {
-    pub fn parse_node(node: &Node) -> Option<Self> {
-        if node.get_name().to_uppercase() != "DIV" {
-            return None;
-        }
-
-        let item_prop_image = node
-            .get_attribute("itemprop")
-            .map(|prop| prop == "image")
-            .unwrap_or(false);
-        let item_type_image = node
-            .get_attribute("itemtype")
-            .map(|attr| attr == "https://schema.org/ImageObject")
-            .unwrap_or(false);
-
-        if !item_prop_image && !item_type_image {
-            return None;
-        }
-
-        let meta_nodes = Util::get_elements_by_tag_name(node, "meta");
-
-        let mut width = None;
-        let mut height = None;
-        let mut url = None;
-        let mut description = None;
-        let mut name = None;
-
-        for meta_node in meta_nodes {
-            let item_prop = meta_node.get_attribute("itemprop");
-            let content_prop = meta_node.get_attribute("content");
-
-            if let (Some(item_prop), Some(content_prop)) = (item_prop, content_prop) {
-                if item_prop == "width" {
-                    width = content_prop.parse::<u32>().ok();
-                } else if item_prop == "height" {
-                    height = content_prop.parse::<u32>().ok();
-                } else if item_prop == "url" {
-                    url = Url::parse(&content_prop).ok();
-                } else if item_prop == "description" {
-                    description = Some(content_prop);
-                } else if item_prop == "name" {
-                    name = Some(content_prop);
-                }
-            }
-        }
-
-        url.as_ref()?;
-
-        Some(Self {
-            width,
-            height,
-            url,
-            description,
-            name,
-        })
-    }
-
-    pub fn replace(&self, node: &mut Node) -> Result<(), FullTextParserError> {
-        let mut parent = node.get_parent().ok_or(FullTextParserError::Xml)?;
-
-        if parent.get_name().to_uppercase() == "A" {
-            return self.replace(&mut parent);
-        }
-
-        node.unlink();
-
-        let mut root = parent
-            .new_child(None, "imageobject")
-            .map_err(|_| FullTextParserError::Xml)?;
-
-        let mut a = root
-            .new_child(None, "a")
-            .map_err(|_| FullTextParserError::Xml)?;
-
-        let mut img = a
-            .new_child(None, "img")
-            .map_err(|_| FullTextParserError::Xml)?;
-
-        if let Some(width) = self.width {
-            _ = img.set_attribute("width", &width.to_string());
-        }
-
-        if let Some(height) = self.height {
-            _ = img.set_attribute("height", &height.to_string());
-        }
-
-        if let Some(description) = self.description.as_deref() {
-            _ = img.set_attribute("alt", description);
-        }
-
-        if let Some(name) = self.name.as_deref() {
-            _ = img.set_attribute("title", name);
-        }
-
-        if let Some(url) = self.url.as_ref() {
-            _ = a.set_attribute("href", url.as_str());
-            _ = img.set_attribute("src", url.as_str());
-        }
-
-        Ok(())
-    }
 }
