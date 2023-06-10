@@ -1,19 +1,15 @@
 use anyhow::Result;
 use headless_chrome::{types::PrintToPdfOptions, Browser, LaunchOptions};
 use pdfium_render::prelude::*;
+use std::env;
 
-// use headless Chrome to fetch and render webpages, most of which spread with js all over
-// capture webpage in pdf format in memory, which is a trick to preserve
-// the spatial context of the texts on the page and make the extraction of
-// human viewable text easier
-// this code aims to get all human viewable texts on a webpage, instead of one central article
+// this code add commandline function on top of the headless example
+// cargo run --example headless_cli --release https://web.site.tovisit
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let url = "https://github.com/topics/leaderboard-api";
-    // set the headless Chrome to open a webpage in portrait mode of certain width and height
-    // here in an iPad resolution, is a way to pursuade webserver to send less non-essential
-    // data, and make the virtual browser to show the central content, for websites
-    // with responsive design, with less clutter
+    let args: Vec<String> = env::args().collect();
+    let url = args.into_iter().nth(1).unwrap();
+
     let options = LaunchOptions {
         headless: true,
         window_size: Some((820, 1180)),
@@ -25,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
     let tab = browser.new_tab()?;
 
     // tab.set_default_timeout(Duration::from_secs(3));
-    tab.navigate_to(url)?;
+    tab.navigate_to(&url)?;
     tab.wait_until_navigated();
 
     let pdf_options: Option<PrintToPdfOptions> = Some(PrintToPdfOptions {
@@ -49,10 +45,7 @@ async fn main() -> anyhow::Result<()> {
     let pdf_data = tab.print_to_pdf(pdf_options)?;
 
     let pdf_as_vec = pdf_data.to_vec();
-    //code below uses dynamically linked libpdfium.dylib on a M1 Mac
-    //it takes some efforts to bind libpdfium on different platforms
-    //please visit https://github.com/ajrcarey/pdfium-render/tree/master
-    //for more details
+
     let text = Pdfium::new(
         Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(
             "/Users/jaykchen/Downloads/pdfium-mac-arm64/lib/libpdfium.dylib",

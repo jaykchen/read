@@ -1,6 +1,6 @@
 [package]
 name = "readah"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Key component of Readability module extracted from https://gitlab.com/news-flash/article_scraper."
 license = "MIT"
@@ -24,10 +24,21 @@ headless_chrome = "1.0.5"
 tiktoken-rs = "0.4.2"
 pdfium-render = "0.8.5"
 serde_json = "1.0.96"
+clipboard = "0.5.0"
+wry = "0.28.3"
 
 [[example]]
 name = "headless"
 path = "src/example/headless.rs"
 [[example]]
+name = "headless_cli"
+path = "src/example/headless_cli.rs"
+[[example]]
 name = "http_client"
 path = "src/example/http_client.rs"
+[[example]]
+name = "get_text_chrome"
+path = "src/example/get_text_chrome.rs"
+[[example]]
+name = "wry_html"
+path = "src/example/wry_html.rs"
