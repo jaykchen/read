@@ -20,8 +20,8 @@ escaper = "0.1"
 http_req = "0.9.1"
 anyhow = "1.0.71"
 html2text = "0.6.0"
-headless_chrome = { git = "https://github.com/rust-headless-chrome/rust-headless-chrome.git" }
-# headless_chrome = "1.0.5"
+# headless_chrome = { git = "https://github.com/rust-headless-chrome/rust-headless-chrome.git" }
+headless_chrome = "1.0.5"
 tiktoken-rs = "0.4.2"
 pdfium-render = "0.8.5"
 serde_json = "1.0.96"
