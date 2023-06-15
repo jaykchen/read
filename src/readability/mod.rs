@@ -1,6 +1,7 @@
 pub mod constants;
 pub mod macros;
 pub mod util;
+pub mod helper;
 
 use constants::{
     ALTER_TO_DIV_EXCEPTIONS, BASE64_DATA_URL, BYLINE, COPY_TO_SRC, COPY_TO_SRCSET, DATA_TABLE_ATTR,
