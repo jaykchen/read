@@ -1,6 +1,6 @@
 [package]
 name = "readah"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "Key component of Readability module extracted from https://gitlab.com/news-flash/article_scraper."
 license = "MIT"
