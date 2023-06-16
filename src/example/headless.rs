@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
 
     // tab.set_default_timeout(Duration::from_secs(3));
     tab.navigate_to(url)?;
-    tab.wait_until_navigated();
+    tab.wait_until_navigated()?;
 
     let pdf_options: Option<PrintToPdfOptions> = Some(PrintToPdfOptions {
         landscape: Some(false),

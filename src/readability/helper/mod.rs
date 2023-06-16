@@ -1,27 +1,10 @@
 use headless_chrome::{types::PrintToPdfOptions, Browser, LaunchOptions};
 use html2text;
-use http_req::request;
 use pdfium_render::prelude::*;
 use crate::readability::Readability;
 use url::Url;
 
-pub async fn get_html_headless(url: &str) -> anyhow::Result<String> {
-    let options = LaunchOptions {
-        headless: true,
-        window_size: Some((820, 1180)),
-        ..Default::default()
-    };
 
-    let browser = Browser::new(options)?;
-
-    let tab = browser.new_tab()?;
-
-    tab.navigate_to(url)?;
-    tab.wait_until_navigated();
-    let text = tab.get_content()?;
-
-    Ok(text)
-}
 pub async fn get_webpage_text_headless(url: &str) -> anyhow::Result<String> {
     // set the headless Chrome to open a webpage in portrait mode of certain width and height
     // here in an iPad resolution, is a way to pursuade webserver to send less non-essential
@@ -38,7 +21,7 @@ pub async fn get_webpage_text_headless(url: &str) -> anyhow::Result<String> {
     let tab = browser.new_tab()?;
 
     tab.navigate_to(url)?;
-    tab.wait_until_navigated();
+    tab.wait_until_navigated()?;
 
     let pdf_options: Option<PrintToPdfOptions> = Some(PrintToPdfOptions {
         landscape: Some(false),
@@ -82,20 +65,21 @@ pub async fn get_webpage_text_headless(url: &str) -> anyhow::Result<String> {
     Ok(text)
 }
 
-pub async fn extract_article_text_http(url: &str) -> anyhow::Result<String> {
-    let parsed_url = Url::parse(url)?;
-    let scheme = parsed_url.scheme();
-    let host = parsed_url.host_str().unwrap_or("");
-    let base_url = Url::parse(&format!("{}://{}", scheme, host)).unwrap();
+pub async fn get_html_headless(url: &str) -> anyhow::Result<String> {
+    let options = LaunchOptions {
+        headless: true,
+        window_size: Some((820, 1180)),
+        // path: Some(PathBuf::from_str("/usr/bin/google-chrome").unwrap()),
+        ..Default::default()
+    };
 
-    let mut writer = Vec::new(); //container for body of a response
-    let _ = request::get(url, &mut writer)?;
+    let browser = Browser::new(options)?;
+    let tab = browser.new_tab()?;
+    tab.navigate_to(url)?;
+    tab.wait_until_navigated()?;
+    let text = tab.get_content()?;
 
-    let res = Readability::extract(&String::from_utf8(writer).unwrap(), Some(base_url)).await?;
-
-    let output = html2text::from_read(res.to_string().as_bytes(), 80);
-
-    Ok(output.to_string())
+    Ok(text)
 }
 
 pub async fn extract_article_text_from_html(url: &str, html_str: String) -> anyhow::Result<String> {
